@@ -1,120 +1,123 @@
 import React, { useEffect, useState } from 'react';
-import { io } from 'socket.io-client';
-import { FaChartLine, FaClock, FaExchangeAlt, FaBalanceScale } from 'react-icons/fa';
+import { socket } from './socket';
+import { FaChartLine, FaExchangeAlt, FaBalanceScale } from 'react-icons/fa';
 
-const SOCKET_SERVER_URL = 'https://signalsv2-backend.onrender.com';
-
-const scoreSignal = (signals) => {
-  let score = 0;
-  ['intraday', 'swing', 'scoresignal'].forEach((strategy) => {
-    if (signals[strategy]) {
-      ['trend', 'setup', 'entry'].forEach((field) => {
-        const val = signals[strategy][field];
-        if (val === 'up') score += 1;
-        else if (val === 'down') score -= 1;
-      });
-    }
-  });
-  return score;
-};
-
-const StockSignals = ({ symbol, onScoreChange }) => {
+const StockSignals = ({ symbol, name, onSignalUpdate, onClick}) => {
   const [signals, setSignals] = useState({});
 
   useEffect(() => {
-    const socket = io(SOCKET_SERVER_URL);
-    ['intraday', 'swing', 'scoresignal'].forEach((strategy) => {
+    // Subscribe to backend for this symbol
+    ['swing', 'adx'].forEach((strategy) => {
       socket.emit('subscribe', { symbol, strategy });
     });
 
-    socket.on('signal', ({ symbol: s, strategy, signal }) => {
+    const handleSignal = ({ symbol: s, strategy, signal }) => {
       if (s === symbol) {
         setSignals((prev) => {
           const updated = { ...prev, [strategy]: signal };
-          if (onScoreChange) {
-            onScoreChange(symbol, scoreSignal(updated));
+          if (strategy === 'adx' && onSignalUpdate) {
+            onSignalUpdate(symbol, signal);
           }
           return updated;
         });
       }
-    });
+    };
 
+    socket.on('signal', handleSignal);
+
+    // Cleanup on unmount
     return () => {
-      ['intraday', 'swing', 'scoresignal'].forEach((strategy) => {
+      ['swing', 'adx'].forEach((strategy) => {
         socket.emit('unsubscribe', { symbol, strategy });
       });
-      socket.disconnect();
+      socket.off('signal', handleSignal);
     };
-    // eslint-disable-next-line
-  }, [symbol]);
+  }, [symbol, onSignalUpdate]);
 
   const colorize = (val) => {
     if (!val) return 'text-gray-400';
     if (typeof val === 'string') {
-      if (val.toLowerCase().includes('buy') || val === 'up') return 'text-green-600 font-semibold';
-      if (val.toLowerCase().includes('sell') || val === 'down') return 'text-red-600 font-semibold';
+      if (val.toLowerCase().includes('buy') || val === 'up')
+        return 'text-green-600 font-semibold';
+      if (val.toLowerCase().includes('sell') || val === 'down')
+        return 'text-red-600 font-semibold';
     }
     return 'text-gray-600';
   };
 
-  const score = scoreSignal(signals);
-
   return (
-    <div className="bg-white rounded-xl shadow-md border border-gray-200 p-7">
+    <div onClick={onClick} className="bg-white rounded-xl shadow-md border border-gray-200 p-7 cursor-pointer">
       <header className="flex items-center gap-2 mb-4 border-b border-gray-200 pb-2">
         <FaChartLine className="text-indigo-600 w-5 h-5" />
-        <h2 className="text-xl font-extrabold text-gray-900">{symbol}</h2>
-        <span className="ml-auto text-sm text-indigo-800 font-bold">Score: {score}</span>
+        <h2 className="text-xl font-extrabold text-gray-900">{name}</h2>
       </header>
 
-      <div className="grid md:grid-cols-3 sm:grid-cols-1 gap-6">
-        {/* Intraday */}
-        <section className="bg-indigo-50 rounded-lg p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <FaClock className="text-indigo-600 w-4 h-4" />
-            <span className="font-semibold text-indigo-900 uppercase tracking-wide">Intraday</span>
-          </div>
-          {signals.intraday ? (
-            <div className="space-y-2 text-sm">
-              <p>Trend: <span className={colorize(signals.intraday.trend)}>{signals.intraday.trend}</span></p>
-              <p>Setup: <span className={colorize(signals.intraday.setup)}>{signals.intraday.setup}</span></p>
-              <p>Entry: <span className={colorize(signals.intraday.entry)}>{signals.intraday.entry}</span></p>
-            </div>
-          ) : (
-            <p className="text-gray-400 italic">Waiting for intraday signals...</p>
-          )}
-        </section>
-
-        {/* Swing */}
+      <div className="grid md:grid-cols-2 sm:grid-cols-1 gap-6">
+        {/* Swing Section */}
         <section className="bg-green-50 rounded-lg p-5">
           <div className="flex items-center gap-2 mb-3">
             <FaExchangeAlt className="text-green-600 w-4 h-4" />
-            <span className="font-semibold text-green-900 uppercase tracking-wide">Swing</span>
+            <span className="font-semibold text-green-900 uppercase tracking-wide">
+              Trend
+            </span>
           </div>
           {signals.swing ? (
             <div className="space-y-2 text-sm">
-              <p>Trend: <span className={colorize(signals.swing.trend)}>{signals.swing.trend}</span></p>
-              <p>Setup: <span className={colorize(signals.swing.setup)}>{signals.swing.setup}</span></p>
-              <p>Entry: <span className={colorize(signals.swing.entry)}>{signals.swing.entry}</span></p>
+              <p>
+                1 Day:{' '}
+                <span className={colorize(signals.swing.trend)}>
+                  {signals.swing.trend}
+                </span>
+              </p>
+              <p>
+                1 Hr:{' '}
+                <span className={colorize(signals.swing.setup)}>
+                  {signals.swing.setup}
+                </span>
+              </p>
+              <p>
+                15 Min:{' '}
+                <span className={colorize(signals.swing.entry)}>
+                  {signals.swing.entry}
+                </span>
+              </p>
             </div>
           ) : (
             <p className="text-gray-400 italic">Waiting for swing signals...</p>
           )}
         </section>
 
-        {/* ScoreSignal */}
+        {/* ADX Section */}
         <section className="bg-yellow-50 rounded-lg p-5">
           <div className="flex items-center gap-2 mb-3">
             <FaBalanceScale className="text-yellow-600 w-4 h-4" />
-            <span className="font-semibold text-yellow-900 uppercase tracking-wide">Score Signal</span>
+            <span className="font-semibold text-yellow-900 uppercase tracking-wide">
+              ADX
+            </span>
           </div>
-          {signals.scoresignal ? (
+          {signals.adx ? (
             <div className="space-y-2 text-sm">
-              <p>Score: <span className={colorize(signals.scoresignal.score?.toString())}>{signals.scoresignal.score}</span></p>
-              <p>Signal: <span className={colorize(signals.scoresignal.final)}>{signals.scoresignal.final}</span></p>
+              <p>
+                ADX:{' '}
+                <span className="text-gray-700 font-medium">
+                  {signals.adx.adx}
+                </span>
+              </p>
+              <p>
+                +DI:{' '}
+                <span className="text-green-700 font-medium">
+                  {signals.adx.plusDI}
+                </span>
+              </p>
+              <p>
+                -DI:{' '}
+                <span className="text-red-700 font-medium">
+                  {signals.adx.minusDI}
+                </span>
+              </p>
             </div>
           ) : (
-            <p className="text-gray-400 italic">Waiting for score signals...</p>
+            <p className="text-gray-400 italic">Waiting for ADX signal...</p>
           )}
         </section>
       </div>

@@ -33,7 +33,7 @@ const stocks: Stock[] = [
 
 function Stocks() {
   const params = useParams();
-  const name = params.name; // from /stocks/:name
+  const name = params.name;
   const navigate = useNavigate();
 
   const [signals, setSignals] = useState<{ [symbol: string]: AdxData }>({});
@@ -42,7 +42,13 @@ function Stocks() {
     setSignals((prev) => ({ ...prev, [symbol]: data }));
   };
 
-  // Find the sector whose symbol matches the name param
+  // Helper function to sort stocks by ADX descending
+  const sortByAdx = (list: string[]) =>
+    [...list].sort(
+      (a, b) => (signals[b]?.adx || 0) - (signals[a]?.adx || 0)
+    );
+
+  // Find the selected sector
   const sector = stocks.find((s) => s.symbol === name);
 
   if (!sector) {
@@ -61,27 +67,33 @@ function Stocks() {
     );
   }
 
-  // Categorize the sector’s stocks
-  const buyStocks = sector.stocks.filter((sym) => {
-    const s = signals[sym];
-    return s && s.adx > 25 && s.plusDI > 25;
-  });
+  // Categorize and sort the stocks
+  const buyStocks = sortByAdx(
+    sector.stocks.filter((sym) => {
+      const s = signals[sym];
+      return s && s.adx > 25 && s.plusDI > 25;
+    })
+  );
 
-  const sellStocks = sector.stocks.filter((sym) => {
-    const s = signals[sym];
-    return s && s.adx > 25 && s.minusDI > 25;
-  });
+  const sellStocks = sortByAdx(
+    sector.stocks.filter((sym) => {
+      const s = signals[sym];
+      return s && s.adx > 25 && s.minusDI > 25;
+    })
+  );
 
-  const holdStocks = sector.stocks.filter((sym) => {
-    const s = signals[sym];
-    return (
-      !s ||
-      !(
-        s.adx > 25 &&
-        (s.plusDI > 25 || s.minusDI > 25)
-      )
-    );
-  });
+  const holdStocks = sortByAdx(
+    sector.stocks.filter((sym) => {
+      const s = signals[sym];
+      return (
+        !s ||
+        !(
+          s.adx > 25 &&
+          (s.plusDI > 25 || s.minusDI > 25)
+        )
+      );
+    })
+  );
 
   const renderSection = (title: string, list: string[]) => (
     <section className="mb-12">
@@ -90,13 +102,18 @@ function Stocks() {
         <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
           {list.map((sym) => (
             <StockSignals
-                  key={sym}
-                  symbol={sym}
-                  onSignalUpdate={handleSignalUpdate} name={sym} onClick={() => {}}            />
+              key={sym}
+              symbol={sym}
+              name={sym}
+              onSignalUpdate={handleSignalUpdate}
+              onClick={() => {}}
+            />
           ))}
         </div>
       ) : (
-        <p className="text-gray-500 italic">No stocks in this category yet...</p>
+        <p className="text-gray-500 italic">
+          No stocks in this category yet...
+        </p>
       )}
     </section>
   );

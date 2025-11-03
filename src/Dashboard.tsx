@@ -33,31 +33,43 @@ const stocks: Stock[] = [
 
 function Dashboard() {
   const [signals, setSignals] = useState<{ [symbol: string]: AdxData }>({});
-
   const navigate = useNavigate();
 
   const handleSignalUpdate = (symbol: string, data: AdxData) => {
     setSignals((prev) => ({ ...prev, [symbol]: data }));
   };
 
-  const buyStocks = stocks.filter((stock) => {
-    const s = signals[stock.symbol];
-    return s && s.adx > 25 && s.plusDI > 25;
-  });
+  // Helper: sort stocks by ADX descending
+  const sortByAdx = (list: Stock[]) =>
+    [...list].sort(
+      (a, b) => (signals[b.symbol]?.adx || 0) - (signals[a.symbol]?.adx || 0)
+    );
 
-  const sellStocks = stocks.filter((stock) => {
-    const s = signals[stock.symbol];
-    return s && s.adx > 25 && s.minusDI > 25;
-  });
+  // Categorize stocks
+  const buyStocks = sortByAdx(
+    stocks.filter((stock) => {
+      const s = signals[stock.symbol];
+      return s && s.adx > 25 && s.plusDI > 25;
+    })
+  );
 
-  const holdStocks = stocks.filter(
-    (stock) =>
-      !signals[stock.symbol] ||
-      !(
-        signals[stock.symbol].adx > 25 &&
-        (signals[stock.symbol].plusDI > 25 ||
-          signals[stock.symbol].minusDI > 25)
-      )
+  const sellStocks = sortByAdx(
+    stocks.filter((stock) => {
+      const s = signals[stock.symbol];
+      return s && s.adx > 25 && s.minusDI > 25;
+    })
+  );
+
+  const holdStocks = sortByAdx(
+    stocks.filter(
+      (stock) =>
+        !signals[stock.symbol] ||
+        !(
+          signals[stock.symbol].adx > 25 &&
+          (signals[stock.symbol].plusDI > 25 ||
+            signals[stock.symbol].minusDI > 25)
+        )
+    )
   );
 
   const renderSection = (title: string, stocksList: Stock[]) => (
